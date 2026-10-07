@@ -2,10 +2,8 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <!-- Tối ưu màn hình & chống tự động zoom khi nhập liệu trên điện thoại -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <!-- Cấu hình PWA chạy toàn màn hình (Full Screen Native) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Quỹ Nhậu">
@@ -31,7 +29,6 @@
       padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem);
     }
 
-    /* Cỡ chữ tối thiểu 16px để iOS Safari không tự phóng to màn hình */
     input, select, textarea {
       font-size: 16px !important;
       user-select: text;
@@ -43,7 +40,6 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    /* Hiệu ứng laser quét bill */
     @keyframes scanAnimation {
       0% { top: 0%; opacity: 0.8; }
       50% { top: 95%; opacity: 1; }
@@ -57,7 +53,6 @@
       animation: scanAnimation 2s linear infinite;
     }
 
-    /* Hiệu ứng trượt Bottom Sheet */
     .bottom-sheet {
       transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
     }
@@ -65,7 +60,7 @@
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen antialiased selection:bg-amber-500 selection:text-black">
 
-  <!-- Header Sticky (Cố định thanh tiêu đề) -->
+  <!-- Header Sticky -->
   <header class="border-b border-zinc-800/80 bg-zinc-950/85 sticky top-0 z-40 backdrop-blur-lg px-4 py-3">
     <div class="max-w-md mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2.5">
@@ -75,7 +70,7 @@
         <div>
           <div class="flex items-center gap-1.5">
             <h1 class="font-extrabold text-base tracking-tight text-white">QUỸ NHẬU</h1>
-            <span class="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">PRO</span>
+            <span class="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">V5.0</span>
           </div>
           <p class="text-[11px] text-zinc-400 font-medium">Bóc bill & Chia tiền tự động</p>
         </div>
@@ -664,7 +659,7 @@
       document.getElementById('ai-status-pill').className = "text-[10px] text-zinc-400 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-zinc-800 font-medium";
     }
 
-    // TẬP TRUNG GỌI TRỰC TIẾP MODEL GEMINI 3.8 FLASH
+    // TỰ ĐỘNG DÒ VÀ CHỌN ĐÚNG MODEL ĐƯỢC CẤP PHÉP (BẢN V5)
     async function runVisionScan() {
       haptic();
       if (!state.currentBase64) return alert("Vui lòng chụp hoặc nạp ảnh bill trước!");
@@ -679,72 +674,75 @@
       laser.classList.remove('hidden');
       btnScan.disabled = true;
 
-      // Danh sách các model theo thông báo hệ thống của Google
-      const candidateModels = [
-        "gemini-3.8-flash",
-        "gemini-3.8-flash-latest",
-        "gemini-3.5-flash",
-        "gemini-3.0-flash"
-      ];
-
       const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền (VNĐ). Không kèm markdown hay giải thích.`;
 
-      let lastError = null;
-      let parsed = null;
+      let modelToUse = "models/gemini-3.8-flash";
 
-      for (const model of candidateModels) {
+      try {
+        // Tự động hỏi Google danh sách model thực tế được hỗ trợ cho Key này
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.settings.geminiKey}`;
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: prompt },
-                  { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
-                ]
-              }]
-            })
-          });
-
-          const resData = await response.json();
-
-          if (!response.ok || resData.error) {
-            lastError = resData.error?.message || `Lỗi HTTP ${response.status}`;
-            continue;
-          }
-
-          const candidate = resData.candidates?.[0];
-          if (!candidate || !candidate.content?.parts?.[0]?.text) {
-            continue;
-          }
-
-          let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-          parsed = JSON.parse(rawText);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            break;
+          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.geminiKey}`);
+          const listData = await listRes.json();
+          if (listData.models && listData.models.length > 0) {
+            const supported = listData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+            const pick = supported.find(m => m.name.includes("3.8-flash"))
+                      || supported.find(m => m.name.includes("3."))
+                      || supported.find(m => m.name.includes("flash"))
+                      || supported[0];
+            if (pick) modelToUse = pick.name;
           }
         } catch (e) {
-          lastError = e.message;
+          console.warn("Không thể dò model, dùng mặc định:", e);
         }
-      }
 
-      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-        state.items = parsed.map((it, idx) => ({
-          id: Date.now() + idx,
-          name: it.name || "Món không tên",
-          price: Number(it.price) || 0,
-          consumers: state.members.map(m => m.id)
-        }));
-        renderItems();
-        calculateSettlement();
-      } else {
-        alert(`Lỗi quét bill: ${lastError || "Không thể kết nối hoặc nhận diện ảnh"}`);
-      }
+        const cleanModel = modelToUse.startsWith("models/") ? modelToUse : `models/${modelToUse}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/${cleanModel}:generateContent?key=${state.settings.geminiKey}`;
 
-      laser.classList.add('hidden');
-      btnScan.disabled = false;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
+              ]
+            }]
+          })
+        });
+
+        const resData = await response.json();
+
+        if (!response.ok || resData.error) {
+          throw new Error(`[${cleanModel}] ` + (resData.error?.message || `Lỗi HTTP ${response.status}`));
+        }
+
+        const candidate = resData.candidates?.[0];
+        if (!candidate || !candidate.content?.parts?.[0]?.text) {
+          throw new Error(`[${cleanModel}] Không tìm thấy dữ liệu từ ảnh.`);
+        }
+
+        let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        const parsed = JSON.parse(rawText);
+
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          state.items = parsed.map((it, idx) => ({
+            id: Date.now() + idx,
+            name: it.name || "Món không tên",
+            price: Number(it.price) || 0,
+            consumers: state.members.map(m => m.id)
+          }));
+          renderItems();
+          calculateSettlement();
+        } else {
+          throw new Error(`[${cleanModel}] Dữ liệu món ăn trả về không đúng định dạng.`);
+        }
+      } catch (err) {
+        alert(`Lỗi quét bill [Bản v5]: ${err.message}`);
+      } finally {
+        laser.classList.add('hidden');
+        btnScan.disabled = false;
+      }
     }
 
     function openVietQR(from, to, amount) {
