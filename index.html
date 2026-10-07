@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Quỹ Nhậu">
   <meta name="theme-color" content="#09090b">
 
-  <title>Quỹ Nhậu 🍻 - AI Quét Bill Siêu Tốc</title>
+  <title>Quỹ Nhậu 🍻 - AI Quét Bill Tự Động</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -70,7 +70,7 @@
         <div>
           <div class="flex items-center gap-1.5">
             <h1 class="font-extrabold text-base tracking-tight text-white">QUỸ NHẬU</h1>
-            <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold">ULTRA FAST</span>
+            <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold">V6.0 AUTO-FALLBACK</span>
           </div>
           <p class="text-[11px] text-zinc-400 font-medium">Bóc bill & Chia tiền tự động</p>
         </div>
@@ -149,9 +149,7 @@
         </div>
       </div>
 
-      <div class="space-y-2.5" id="items-list">
-        <!-- Render danh sách món -->
-      </div>
+      <div class="space-y-2.5" id="items-list"></div>
 
       <!-- Phụ phí & Giảm giá -->
       <div class="mt-4 pt-3.5 border-t border-zinc-800/80 grid grid-cols-2 gap-2.5 text-xs">
@@ -184,9 +182,7 @@
         </button>
       </div>
 
-      <div class="space-y-2" id="member-list">
-        <!-- Render danh sách thành viên -->
-      </div>
+      <div class="space-y-2" id="member-list"></div>
     </section>
 
     <!-- BƯỚC 4: BẢNG CHIA TIỀN TỰ ĐỘNG -->
@@ -204,9 +200,7 @@
         </div>
       </div>
 
-      <div class="space-y-2.5" id="member-split-summary">
-        <!-- Render tự động -->
-      </div>
+      <div class="space-y-2.5" id="member-split-summary"></div>
 
       <button onclick="copyZaloSummary()" class="w-full mt-4 py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition min-h-[46px]">
         <i class="fa-regular fa-copy text-sm"></i> Sao Chép Báo Cáo Gửi Vào Nhóm Zalo
@@ -620,7 +614,6 @@
       calculateSettlement();
     }
 
-    // Nén ảnh thông minh: Tối ưu dung lượng 100KB - 200KB để upload tức thì
     function processSelectedImage(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -661,7 +654,7 @@
       document.getElementById('ai-status-pill').className = "text-[10px] text-zinc-400 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-zinc-800 font-medium";
     }
 
-    // THUẬT TOÁN QUÉT SIÊU TỐC: KHÓA THINKING VỀ LOW & TRÍCH XUẤT OUTPUT CHÍNH XÁC
+    // THUẬT TOÁN AUTO-FALLBACK: TỰ ĐỘNG CHUYỂN SERVER KHI BỊ QUÁ TẢI (503 / HIGH DEMAND)
     async function runVisionScan() {
       haptic();
       if (!state.currentBase64) return alert("Vui lòng chụp hoặc nạp ảnh bill trước!");
@@ -677,9 +670,6 @@
 
       laser.classList.remove('hidden');
       btnScan.disabled = true;
-      btnScan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> AI đang bóc tách siêu tốc...`;
-      pill.innerText = "Đang xử lý...";
-      pill.className = "text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-medium";
 
       const prompt = `Bạn là trợ lý OCR hóa đơn. Hãy đọc từng dòng món ăn và dịch vụ trong ảnh này.
 Xuất ra DUY NHẤT một mảng JSON thuần túy theo mẫu sau:
@@ -689,92 +679,118 @@ Quy tắc:
 - "price": Số nguyên là thành tiền VNĐ (không dấu chấm/phẩy).
 - Không giải thích, không kèm markdown \`\`\`json.`;
 
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${state.settings.geminiKey}`;
+      // Danh sách các model luân chuyển tự động
+      const modelList = [
+        "gemini-3.8-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro"
+      ];
 
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
-              ]
-            }],
-            generationConfig: {
-              // BẬT LOW ĐỂ TRẢ LỜI NGAY TRONG 1 GIÂY (KHÔNG TỐN THỜI GIAN NGHĨ)
-              thinkingConfig: {
-                thinkingLevel: "low"
-              },
-              responseMimeType: "application/json"
-            }
-          })
-        });
+      let parsed = null;
+      let lastErrMsg = "";
 
-        const resData = await response.json();
+      for (let i = 0; i < modelList.length; i++) {
+        const currentModel = modelList[i];
+        btnScan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang đọc (${currentModel.replace('gemini-', '')})...`;
+        pill.innerText = `Đang kết nối: ${currentModel.replace('gemini-', '')}`;
+        pill.className = "text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-medium";
 
-        if (!response.ok || resData.error) {
-          throw new Error(resData.error?.message || `Lỗi HTTP ${response.status}`);
-        }
-
-        const candidate = resData.candidates?.[0];
-        if (!candidate || !candidate.content?.parts?.length) {
-          throw new Error("Không tìm thấy phản hồi từ máy chủ AI.");
-        }
-
-        // BỎ QUA PHẦN SUY NGHĨ (THOUGHT), CHỈ LẤY PHẦN KẾT QUẢ OUTPUT THỰC SỰ
-        const answerPart = candidate.content.parts.find(p => !p.thought && p.text) 
-                        || candidate.content.parts[candidate.content.parts.length - 1];
-
-        if (!answerPart || !answerPart.text) {
-          throw new Error("Dữ liệu bóc tách rỗng.");
-        }
-
-        let rawText = answerPart.text.trim();
-        let parsed = null;
-
-        // Bóc tách JSON an toàn (Bảo đảm không bị lỗi cú pháp)
         try {
-          parsed = JSON.parse(rawText);
-        } catch (e) {
-          const matchArr = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
-          if (matchArr) {
-            parsed = JSON.parse(matchArr[0]);
-          } else {
-            const matchObj = rawText.match(/\{[\s\S]*\}/);
-            if (matchObj) {
-              const obj = JSON.parse(matchObj[0]);
-              parsed = obj.items || obj.dishes || Object.values(obj).find(v => Array.isArray(v));
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${state.settings.geminiKey}`;
+
+          // Tùy biến cấu hình an toàn cho từng model
+          let genConfig = {
+            temperature: 0.1,
+            maxOutputTokens: 2048,
+            responseMimeType: "application/json"
+          };
+          if (currentModel.includes("3.8") || currentModel.includes("3.")) {
+            genConfig.thinkingConfig = { thinkingLevel: "low" };
+          }
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
+                ]
+              }],
+              generationConfig: genConfig
+            })
+          });
+
+          const resData = await response.json();
+
+          // Nếu model này bị quá tải (503 / 429) hoặc không hỗ trợ, chuyển ngay sang model sau
+          if (!response.ok || resData.error) {
+            lastErrMsg = resData.error?.message || `Lỗi HTTP ${response.status}`;
+            console.warn(`Model ${currentModel} báo lỗi: ${lastErrMsg}. Đang chuyển server tiếp theo...`);
+            pill.innerText = `Server ${currentModel.replace('gemini-', '')} bận, đổi server...`;
+            continue;
+          }
+
+          const candidate = resData.candidates?.[0];
+          if (!candidate || !candidate.content?.parts?.length) continue;
+
+          // Bỏ qua suy nghĩ (thought), lấy phần kết quả
+          const answerPart = candidate.content.parts.find(p => !p.thought && p.text) 
+                          || candidate.content.parts[candidate.content.parts.length - 1];
+
+          if (!answerPart || !answerPart.text) continue;
+
+          let rawText = answerPart.text.trim();
+
+          // Parse JSON
+          try {
+            parsed = JSON.parse(rawText);
+          } catch (e) {
+            const matchArr = rawText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (matchArr) {
+              parsed = JSON.parse(matchArr[0]);
+            } else {
+              const matchObj = rawText.match(/\{[\s\S]*\}/);
+              if (matchObj) {
+                const obj = JSON.parse(matchObj[0]);
+                parsed = obj.items || obj.dishes || Object.values(obj).find(v => Array.isArray(v));
+              }
             }
           }
+
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            break; // Đọc thành công -> Dừng vòng lặp ngay
+          }
+        } catch (e) {
+          lastErrMsg = e.message;
+          console.warn(`Lỗi mạng ở ${currentModel}:`, e);
         }
-
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          state.items = parsed.map((it, idx) => ({
-            id: Date.now() + idx,
-            name: it.name || "Món không tên",
-            price: Number(it.price) || 0,
-            consumers: state.members.map(m => m.id)
-          }));
-          renderItems();
-          calculateSettlement();
-
-          pill.innerText = `Đã bóc xong ${parsed.length} món`;
-          pill.className = "text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-medium";
-        } else {
-          throw new Error("Không thể trích xuất danh sách món từ ảnh. Vui lòng chụp rõ hơn.");
-        }
-
-      } catch (err) {
-        alert(`Lỗi quét bill: ${err.message}`);
-        pill.innerText = "Lỗi quét";
-        pill.className = "text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-medium";
-      } finally {
-        laser.classList.add('hidden');
-        btnScan.disabled = false;
-        btnScan.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI Bóc Tách Hóa Đơn Ngay`;
       }
+
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        state.items = parsed.map((it, idx) => ({
+          id: Date.now() + idx,
+          name: it.name || "Món không tên",
+          price: Number(it.price) || 0,
+          consumers: state.members.map(m => m.id)
+        }));
+        renderItems();
+        calculateSettlement();
+
+        pill.innerText = `Đã bóc xong ${parsed.length} món 🎉`;
+        pill.className = "text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-medium";
+      } else {
+        alert(`Tất cả máy chủ AI đang tạm thời quá tải cao điểm: ${lastErrMsg}\nVui lòng thử lại sau 1-2 phút.`);
+        pill.innerText = "Server AI quá tải";
+        pill.className = "text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-medium";
+      }
+
+      laser.classList.add('hidden');
+      btnScan.disabled = false;
+      btnScan.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI Bóc Tách Hóa Đơn Ngay`;
     }
 
     function openVietQR(from, to, amount) {
