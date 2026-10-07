@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <!-- Tối ưu hiển thị màn hình & chống phóng to giao diện trên điện thoại -->
+  <!-- Tối ưu màn hình & chống tự động zoom khi nhập liệu trên điện thoại -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
   <!-- Cấu hình PWA chạy toàn màn hình (Full Screen Native) -->
@@ -31,7 +31,7 @@
       padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem);
     }
 
-    /* Bắt buộc cỡ chữ 16px trên iOS để Safari không tự phóng to màn hình khi gõ */
+    /* Bắt buộc cỡ chữ tối thiểu 16px để iOS Safari không tự phóng to màn hình */
     input, select, textarea {
       font-size: 16px !important;
       user-select: text;
@@ -43,7 +43,7 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    /* Hiệu ứng tia quét laser */
+    /* Hiệu ứng laser quét bill */
     @keyframes scanAnimation {
       0% { top: 0%; opacity: 0.8; }
       50% { top: 95%; opacity: 1; }
@@ -89,7 +89,7 @@
 
   <main class="max-w-md mx-auto px-3.5 mt-4 space-y-4">
 
-    <!-- PHẦN 1: QUÉT / CHỤP HÓA ĐƠN -->
+    <!-- BƯỚC 1: QUÉT / CHỤP HÓA ĐƠN -->
     <section class="card-dark rounded-3xl p-4">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
@@ -135,7 +135,7 @@
       </div>
     </section>
 
-    <!-- PHẦN 2: BÓC TÁCH MÓN ĂN & CHỌN AI ĂN MÓN GÌ -->
+    <!-- BƯỚC 2: BÓC TÁCH MÓN ĂN & CHỌN AI ĂN MÓN GÌ -->
     <section class="card-dark rounded-3xl p-4">
       <div class="flex items-center justify-between mb-3">
         <div>
@@ -171,7 +171,7 @@
       </div>
     </section>
 
-    <!-- PHẦN 3: THÀNH VIÊN & CHỌN CHỦ CHI -->
+    <!-- BƯỚC 3: THÀNH VIÊN & CHỌN CHỦ CHI -->
     <section class="card-dark rounded-3xl p-4">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
@@ -194,12 +194,12 @@
       </div>
     </section>
 
-    <!-- PHẦN 4: BẢNG CHIA TIỀN TỰ ĐỘNG (NẰM Ở DƯỚI CÙNG) -->
+    <!-- BƯỚC 4: BẢNG CHIA TIỀN TỰ ĐỘNG (DƯỚI CÙNG) -->
     <section class="card-dark rounded-3xl p-4 border border-amber-500/30 bg-gradient-to-b from-amber-500/10 via-zinc-950 to-zinc-950 shadow-2xl">
       <div class="flex items-center justify-between mb-3">
         <div>
           <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-calculator"></i> BẢNG CHIA TIỀN TỰ ĐỘNG
+            <i class="fa-solid fa-calculator"></i> 4. BẢNG CHIA TIỀN TỰ ĐỘNG
           </h2>
           <p class="text-[10px] text-zinc-400">Tự động tính theo món mỗi người dùng</p>
         </div>
@@ -637,7 +637,7 @@
       calculateSettlement();
     }
 
-    // 5. Quét AI Vision
+    // 5. Quét AI Vision (Đã vá lỗi evaluating)
     function processSelectedImage(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -700,18 +700,34 @@
         });
 
         const resData = await response.json();
-        let rawText = resData.candidates[0].content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+
+        // 1. Kiểm tra lỗi trực tiếp từ Google API phản hồi
+        if (!response.ok || resData.error) {
+          const apiMsg = resData.error?.message || `Mã lỗi HTTP: ${response.status}`;
+          throw new Error(`Google API: ${apiMsg}`);
+        }
+
+        // 2. Kiểm tra nếu candidates không tồn tại hoặc rỗng
+        const candidate = resData.candidates?.[0];
+        if (!candidate || !candidate.content?.parts?.[0]?.text) {
+          const reason = candidate?.finishReason || "AI không phân tích được ảnh này";
+          throw new Error(`Không có kết quả: ${reason}`);
+        }
+
+        let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
         const parsed = JSON.parse(rawText);
 
         if (Array.isArray(parsed) && parsed.length > 0) {
           state.items = parsed.map((it, idx) => ({
             id: Date.now() + idx,
-            name: it.name,
+            name: it.name || "Món không tên",
             price: Number(it.price) || 0,
             consumers: state.members.map(m => m.id)
           }));
           renderItems();
           calculateSettlement();
+        } else {
+          throw new Error("Dữ liệu món ăn trả về không đúng danh sách mảng JSON.");
         }
       } catch (err) {
         alert(`Lỗi quét bill: ${err.message}`);
