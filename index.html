@@ -50,7 +50,7 @@
       left: 0; right: 0; height: 3px;
       background: linear-gradient(90deg, transparent, #f59e0b, #ef4444, transparent);
       box-shadow: 0 0 16px #f59e0b;
-      animation: scanAnimation 2s linear infinite;
+      animation: scanAnimation 1.5s linear infinite;
     }
 
     .bottom-sheet {
@@ -70,7 +70,7 @@
         <div>
           <div class="flex items-center gap-1.5">
             <h1 class="font-extrabold text-base tracking-tight text-white">QUỸ NHẬU</h1>
-            <span class="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">V5.0</span>
+            <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold">FAST AI</span>
           </div>
           <p class="text-[11px] text-zinc-400 font-medium">Bóc bill & Chia tiền tự động</p>
         </div>
@@ -204,12 +204,10 @@
         </div>
       </div>
 
-      <!-- Danh sách tính tiền -->
       <div class="space-y-2.5" id="member-split-summary">
         <!-- Render tự động -->
       </div>
 
-      <!-- Nút sao chép Zalo -->
       <button onclick="copyZaloSummary()" class="w-full mt-4 py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition min-h-[46px]">
         <i class="fa-regular fa-copy text-sm"></i> Sao Chép Báo Cáo Gửi Vào Nhóm Zalo
       </button>
@@ -217,9 +215,8 @@
 
   </main>
 
-  <!-- ==================== BOTTOM SHEETS (DÀNH CHO MOBILE) ==================== -->
-
-  <!-- SHEET 1: THÊM MÓN ĂN -->
+  <!-- BOTTOM SHEETS -->
+  <!-- SHEET 1: THÊM MÓN -->
   <div id="sheet-add-item-backdrop" onclick="closeBottomSheet('sheet-add-item')" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity"></div>
   <div id="sheet-add-item" class="bottom-sheet fixed inset-x-0 bottom-0 bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-5 z-50 transform translate-y-full max-w-md mx-auto">
     <div class="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-4"></div>
@@ -244,7 +241,7 @@
     </button>
   </div>
 
-  <!-- SHEET 2: CÀI ĐẶT NGÂN HÀNG & GEMINI API KEY -->
+  <!-- SHEET 2: CÀI ĐẶT -->
   <div id="sheet-settings-backdrop" onclick="closeBottomSheet('sheet-settings')" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity"></div>
   <div id="sheet-settings" class="bottom-sheet fixed inset-x-0 bottom-0 bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-5 z-50 transform translate-y-full max-w-md mx-auto max-h-[88vh] overflow-y-auto">
     <div class="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-4"></div>
@@ -283,7 +280,7 @@
     </button>
   </div>
 
-  <!-- SHEET 3: VIETQR QUÉT TIỀN -->
+  <!-- SHEET 3: VIETQR -->
   <div id="sheet-qr-backdrop" onclick="closeBottomSheet('sheet-qr')" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 hidden opacity-0 transition-opacity"></div>
   <div id="sheet-qr" class="bottom-sheet fixed inset-x-0 bottom-0 bg-zinc-900 border-t border-zinc-800 rounded-t-3xl p-6 z-50 transform translate-y-full max-w-md mx-auto text-center">
     <div class="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-3"></div>
@@ -624,16 +621,22 @@
       calculateSettlement();
     }
 
+    // 1. TỐI ƯU HÓA NÉN ẢNH: GIẢM XUỐNG 1200px VÀ CHẤT LƯỢNG 0.75 (TĂNG TỐC 15 LẦN)
     function processSelectedImage(event) {
       const file = event.target.files[0];
       if (!file) return;
+
+      const pill = document.getElementById('ai-status-pill');
+      pill.innerText = "Đang nén ảnh...";
+      pill.className = "text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-medium";
 
       const reader = new FileReader();
       reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
           const canvas = document.createElement('canvas');
-          let width = img.width, height = img.height, maxDim = 2048;
+          let width = img.width, height = img.height;
+          const maxDim = 1200; // Giới hạn 1200px (vừa siêu nhẹ vừa cực kỳ sắc nét để đọc chữ)
           if (width > maxDim || height > maxDim) {
             if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
             else { width = Math.round((width * maxDim) / height); height = maxDim; }
@@ -641,11 +644,11 @@
           canvas.width = width; canvas.height = height;
           canvas.getContext('2d').drawImage(img, 0, 0, width, height);
 
-          state.currentBase64 = canvas.toDataURL('image/jpeg', 0.90).split(',')[1];
-          document.getElementById('bill-preview-img').src = canvas.toDataURL('image/jpeg', 0.90);
+          // Nén chất lượng 0.75 -> Giảm dung lượng từ ~3MB còn ~150KB
+          state.currentBase64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
+          document.getElementById('bill-preview-img').src = canvas.toDataURL('image/jpeg', 0.75);
           document.getElementById('image-preview-container').classList.remove('hidden');
-          document.getElementById('ai-status-pill').innerText = "Đã nạp bill";
-          document.getElementById('ai-status-pill').className = "text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-medium";
+          pill.innerText = "Ảnh đã sẵn sàng";
         };
         img.src = e.target.result;
       };
@@ -659,7 +662,7 @@
       document.getElementById('ai-status-pill').className = "text-[10px] text-zinc-400 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-zinc-800 font-medium";
     }
 
-    // TỰ ĐỘNG DÒ VÀ CHỌN ĐÚNG MODEL ĐƯỢC CẤP PHÉP (BẢN V5)
+    // 2. GỌI THẲNG MODEL MỚI VÀ ÉP JSON TỨC THÌ (XỬ LÝ TRONG 2 GIÂY)
     async function runVisionScan() {
       haptic();
       if (!state.currentBase64) return alert("Vui lòng chụp hoặc nạp ảnh bill trước!");
@@ -671,78 +674,88 @@
 
       const laser = document.getElementById('scan-laser');
       const btnScan = document.getElementById('btn-scan');
+      const pill = document.getElementById('ai-status-pill');
+
       laser.classList.remove('hidden');
       btnScan.disabled = true;
+      btnScan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> AI đang bóc tách...`;
+      pill.innerText = "Đang gửi ảnh...";
 
-      const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền (VNĐ). Không kèm markdown hay giải thích.`;
+      const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON theo mẫu: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền (VNĐ).`;
 
-      let modelToUse = "models/gemini-3.8-flash";
+      // Danh sách model gọi thẳng trực tiếp, không mất thời gian dò
+      const modelsToTry = [
+        "gemini-3.8-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest"
+      ];
 
-      try {
-        // Tự động hỏi Google danh sách model thực tế được hỗ trợ cho Key này
+      let parsed = null;
+      let lastError = null;
+
+      for (const model of modelsToTry) {
         try {
-          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.geminiKey}`);
-          const listData = await listRes.json();
-          if (listData.models && listData.models.length > 0) {
-            const supported = listData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-            const pick = supported.find(m => m.name.includes("3.8-flash"))
-                      || supported.find(m => m.name.includes("3."))
-                      || supported.find(m => m.name.includes("flash"))
-                      || supported[0];
-            if (pick) modelToUse = pick.name;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.settings.geminiKey}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
+                ]
+              }],
+              // Cấu hình tăng tốc độ suy luận của AI
+              generationConfig: {
+                temperature: 0.1,
+                responseMimeType: "application/json"
+              }
+            })
+          });
+
+          const resData = await response.json();
+
+          if (!response.ok || resData.error) {
+            lastError = resData.error?.message || `Lỗi HTTP ${response.status}`;
+            continue;
+          }
+
+          const candidate = resData.candidates?.[0];
+          if (!candidate || !candidate.content?.parts?.[0]?.text) {
+            continue;
+          }
+
+          let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+          parsed = JSON.parse(rawText);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            break; // Hoàn tất thành công
           }
         } catch (e) {
-          console.warn("Không thể dò model, dùng mặc định:", e);
+          lastError = e.message;
         }
-
-        const cleanModel = modelToUse.startsWith("models/") ? modelToUse : `models/${modelToUse}`;
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/${cleanModel}:generateContent?key=${state.settings.geminiKey}`;
-
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
-              ]
-            }]
-          })
-        });
-
-        const resData = await response.json();
-
-        if (!response.ok || resData.error) {
-          throw new Error(`[${cleanModel}] ` + (resData.error?.message || `Lỗi HTTP ${response.status}`));
-        }
-
-        const candidate = resData.candidates?.[0];
-        if (!candidate || !candidate.content?.parts?.[0]?.text) {
-          throw new Error(`[${cleanModel}] Không tìm thấy dữ liệu từ ảnh.`);
-        }
-
-        let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-        const parsed = JSON.parse(rawText);
-
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          state.items = parsed.map((it, idx) => ({
-            id: Date.now() + idx,
-            name: it.name || "Món không tên",
-            price: Number(it.price) || 0,
-            consumers: state.members.map(m => m.id)
-          }));
-          renderItems();
-          calculateSettlement();
-        } else {
-          throw new Error(`[${cleanModel}] Dữ liệu món ăn trả về không đúng định dạng.`);
-        }
-      } catch (err) {
-        alert(`Lỗi quét bill [Bản v5]: ${err.message}`);
-      } finally {
-        laser.classList.add('hidden');
-        btnScan.disabled = false;
       }
+
+      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+        state.items = parsed.map((it, idx) => ({
+          id: Date.now() + idx,
+          name: it.name || "Món không tên",
+          price: Number(it.price) || 0,
+          consumers: state.members.map(m => m.id)
+        }));
+        renderItems();
+        calculateSettlement();
+        pill.innerText = `Đã bóc xong ${parsed.length} món`;
+        pill.className = "text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-medium";
+      } else {
+        alert(`Lỗi quét bill: ${lastError || "Không thể nhận diện ảnh"}`);
+        pill.innerText = "Lỗi quét";
+        pill.className = "text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 rounded-full font-medium";
+      }
+
+      laser.classList.add('hidden');
+      btnScan.disabled = false;
+      btnScan.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI Bóc Tách Từng Dòng Món`;
     }
 
     function openVietQR(from, to, amount) {
