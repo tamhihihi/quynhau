@@ -2,10 +2,8 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <!-- Tối ưu màn hình & chống tự động zoom khi nhập liệu trên điện thoại -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <!-- Cấu hình PWA chạy toàn màn hình (Full Screen Native) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Quỹ Nhậu">
@@ -31,7 +29,6 @@
       padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem);
     }
 
-    /* Cỡ chữ tối thiểu 16px để iOS Safari không tự phóng to màn hình */
     input, select, textarea {
       font-size: 16px !important;
       user-select: text;
@@ -43,7 +40,6 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    /* Hiệu ứng laser quét bill */
     @keyframes scanAnimation {
       0% { top: 0%; opacity: 0.8; }
       50% { top: 95%; opacity: 1; }
@@ -57,7 +53,6 @@
       animation: scanAnimation 2s linear infinite;
     }
 
-    /* Hiệu ứng trượt Bottom Sheet */
     .bottom-sheet {
       transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
     }
@@ -65,7 +60,7 @@
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen antialiased selection:bg-amber-500 selection:text-black">
 
-  <!-- Header Sticky (Cố định thanh tiêu đề) -->
+  <!-- Header Sticky -->
   <header class="border-b border-zinc-800/80 bg-zinc-950/85 sticky top-0 z-40 backdrop-blur-lg px-4 py-3">
     <div class="max-w-md mx-auto flex items-center justify-between">
       <div class="flex items-center gap-2.5">
@@ -309,7 +304,6 @@
   </div>
 
   <script>
-    // Phản hồi rung nhẹ khi chạm trên mobile
     function haptic() {
       if (navigator.vibrate) {
         navigator.vibrate(12);
@@ -339,7 +333,6 @@
       return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
     }
 
-    // Quản lý Bottom Sheet
     function openBottomSheet(id) {
       haptic();
       const sheet = document.getElementById(id);
@@ -357,7 +350,6 @@
       setTimeout(() => backdrop.classList.add('hidden'), 280);
     }
 
-    // 1. Quản lý thành viên & Chủ chi
     function setPayer(id) {
       haptic();
       state.payerId = id;
@@ -424,7 +416,6 @@
       }).join('');
     }
 
-    // 2. Tính toán chia tiền tự động
     let currentSettlements = [];
     let currentGrandTotal = 0;
 
@@ -478,7 +469,6 @@
 
       const payerConsumed = Math.round((consumed[payer.id] || 0) / 1000) * 1000;
 
-      // Card Chủ chi
       let html = `
         <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-between">
           <div>
@@ -496,7 +486,6 @@
         </div>
       `;
 
-      // Danh sách người chuyển tiền
       state.members.filter(m => m.id !== payer.id).forEach(m => {
         const myConsumed = Math.round((consumed[m.id] || 0) / 1000) * 1000;
         html += `
@@ -521,7 +510,6 @@
       container.innerHTML = html;
     }
 
-    // 3. Quản lý món ăn
     function renderItems() {
       document.getElementById('item-count').innerText = state.items.length;
       const list = document.getElementById('items-list');
@@ -614,7 +602,6 @@
       calculateSettlement();
     }
 
-    // 4. Mẫu bill quán dê (Khớp 100% 14 món = 3.492.000 ₫)
     function loadSample14Items() {
       haptic();
       state.items = [
@@ -637,7 +624,6 @@
       calculateSettlement();
     }
 
-    // 5. Quét AI Vision (Tự động chuyển đổi các model mới để tránh lỗi không tìm thấy model)
     function processSelectedImage(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -673,6 +659,7 @@
       document.getElementById('ai-status-pill').className = "text-[10px] text-zinc-400 bg-zinc-900 px-2.5 py-0.5 rounded-full border border-zinc-800 font-medium";
     }
 
+    // TỰ ĐỘNG DÒ MODEL HỖ TRỢ ĐỂ TRÁNH LỖI NOT FOUND
     async function runVisionScan() {
       haptic();
       if (!state.currentBase64) return alert("Vui lòng chụp hoặc nạp ảnh bill trước!");
@@ -687,75 +674,80 @@
       laser.classList.remove('hidden');
       btnScan.disabled = true;
 
-      // Danh sách các model mới, tự động thử model tiếp theo nếu model trước lỗi
-      const candidateModels = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash"
-      ];
+      const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON thuần túy theo định dạng:
+[{"name": "Tên món", "price": 100000}]
+Quy tắc: price là số nguyên thành tiền (VNĐ). Không kèm markdown hay giải thích.`;
 
-      const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền. Không kèm markdown.`;
-
-      let lastError = null;
-      let parsed = null;
-
-      for (const model of candidateModels) {
+      try {
+        // 1. Tự động truy vấn danh sách model thực tế được hỗ trợ cho API Key này
+        let targetModel = "models/gemini-1.5-flash-latest";
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.settings.geminiKey}`;
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: prompt },
-                  { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
-                ]
-              }]
-            })
-          });
-
-          const resData = await response.json();
-
-          if (!response.ok || resData.error) {
-            lastError = resData.error?.message || `Lỗi HTTP ${response.status}`;
-            continue; // Tự động thử model tiếp theo
-          }
-
-          const candidate = resData.candidates?.[0];
-          if (!candidate || !candidate.content?.parts?.[0]?.text) {
-            continue;
-          }
-
-          let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-          parsed = JSON.parse(rawText);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            break; // Đọc thành công
+          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.geminiKey}`);
+          const listData = await listRes.json();
+          if (listData.models && listData.models.length > 0) {
+            const valid = listData.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+            const preferred = valid.find(m => m.name.includes("flash") && (m.name.includes("2.0") || m.name.includes("1.5")))
+                           || valid.find(m => m.name.includes("flash"))
+                           || valid.find(m => m.name.includes("gemini"))
+                           || valid[0];
+            if (preferred) targetModel = preferred.name;
           }
         } catch (e) {
-          lastError = e.message;
+          console.warn("Không thể lấy danh sách model, dùng mặc định", e);
         }
-      }
 
-      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-        state.items = parsed.map((it, idx) => ({
-          id: Date.now() + idx,
-          name: it.name || "Món không tên",
-          price: Number(it.price) || 0,
-          consumers: state.members.map(m => m.id)
-        }));
-        renderItems();
-        calculateSettlement();
-      } else {
-        alert(`Lỗi quét bill: ${lastError || "Không thể kết nối hoặc nhận diện ảnh"}`);
-      }
+        const modelEndpoint = targetModel.startsWith("models/") ? targetModel : `models/${targetModel}`;
 
-      laser.classList.add('hidden');
-      btnScan.disabled = false;
+        // 2. Gửi yêu cầu với model tìm được
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/${modelEndpoint}:generateContent?key=${state.settings.geminiKey}`;
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
+              ]
+            }]
+          })
+        });
+
+        const resData = await response.json();
+
+        if (!response.ok || resData.error) {
+          throw new Error(resData.error?.message || `Lỗi HTTP ${response.status}`);
+        }
+
+        const candidate = resData.candidates?.[0];
+        if (!candidate || !candidate.content?.parts?.[0]?.text) {
+          throw new Error("Không nhận diện được nội dung từ ảnh hóa đơn này.");
+        }
+
+        let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        const parsed = JSON.parse(rawText);
+
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          state.items = parsed.map((it, idx) => ({
+            id: Date.now() + idx,
+            name: it.name || "Món không tên",
+            price: Number(it.price) || 0,
+            consumers: state.members.map(m => m.id)
+          }));
+          renderItems();
+          calculateSettlement();
+        } else {
+          throw new Error("Dữ liệu món ăn trả về không đúng danh sách.");
+        }
+      } catch (err) {
+        alert(`Lỗi quét bill: ${err.message}`);
+      } finally {
+        laser.classList.add('hidden');
+        btnScan.disabled = false;
+      }
     }
 
-    // 6. Tạo VietQR và sao chép Zalo
     function openVietQR(from, to, amount) {
       const memo = encodeURIComponent(`QuyNhau ${from} tra ${to}`);
       const qrUrl = `https://img.vietqr.io/image/${state.settings.bank}-${state.settings.acc}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${encodeURIComponent(state.settings.name)}`;
@@ -809,7 +801,6 @@
       alert("Đã lưu cài đặt!");
     }
 
-    // Khởi chạy mặc định
     loadSavedSettings();
     renderMembers();
     loadSample14Items();
