@@ -31,7 +31,7 @@
       padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem);
     }
 
-    /* Bắt buộc cỡ chữ tối thiểu 16px để iOS Safari không tự phóng to màn hình */
+    /* Cỡ chữ tối thiểu 16px để iOS Safari không tự phóng to màn hình */
     input, select, textarea {
       font-size: 16px !important;
       user-select: text;
@@ -637,7 +637,7 @@
       calculateSettlement();
     }
 
-    // 5. Quét AI Vision (Đã vá lỗi evaluating)
+    // 5. Quét AI Vision (Tự động chuyển đổi các model mới để tránh lỗi không tìm thấy model)
     function processSelectedImage(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -687,54 +687,72 @@
       laser.classList.remove('hidden');
       btnScan.disabled = true;
 
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.settings.geminiKey}`;
-        const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền. Không kèm markdown.`;
+      // Danh sách các model mới, tự động thử model tiếp theo nếu model trước lỗi
+      const candidateModels = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash"
+      ];
 
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }] }]
-          })
-        });
+      const prompt = `Đọc toàn bộ các dòng món ăn/dịch vụ trên bill này từ trên xuống dưới. Xuất ra DUY NHẤT một mảng JSON: [{"name": "Tên món", "price": 100000}]. Giá là số nguyên thành tiền. Không kèm markdown.`;
 
-        const resData = await response.json();
+      let lastError = null;
+      let parsed = null;
 
-        // 1. Kiểm tra lỗi trực tiếp từ Google API phản hồi
-        if (!response.ok || resData.error) {
-          const apiMsg = resData.error?.message || `Mã lỗi HTTP: ${response.status}`;
-          throw new Error(`Google API: ${apiMsg}`);
+      for (const model of candidateModels) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.settings.geminiKey}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: "image/jpeg", data: state.currentBase64 } }
+                ]
+              }]
+            })
+          });
+
+          const resData = await response.json();
+
+          if (!response.ok || resData.error) {
+            lastError = resData.error?.message || `Lỗi HTTP ${response.status}`;
+            continue; // Tự động thử model tiếp theo
+          }
+
+          const candidate = resData.candidates?.[0];
+          if (!candidate || !candidate.content?.parts?.[0]?.text) {
+            continue;
+          }
+
+          let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+          parsed = JSON.parse(rawText);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            break; // Đọc thành công
+          }
+        } catch (e) {
+          lastError = e.message;
         }
-
-        // 2. Kiểm tra nếu candidates không tồn tại hoặc rỗng
-        const candidate = resData.candidates?.[0];
-        if (!candidate || !candidate.content?.parts?.[0]?.text) {
-          const reason = candidate?.finishReason || "AI không phân tích được ảnh này";
-          throw new Error(`Không có kết quả: ${reason}`);
-        }
-
-        let rawText = candidate.content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-        const parsed = JSON.parse(rawText);
-
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          state.items = parsed.map((it, idx) => ({
-            id: Date.now() + idx,
-            name: it.name || "Món không tên",
-            price: Number(it.price) || 0,
-            consumers: state.members.map(m => m.id)
-          }));
-          renderItems();
-          calculateSettlement();
-        } else {
-          throw new Error("Dữ liệu món ăn trả về không đúng danh sách mảng JSON.");
-        }
-      } catch (err) {
-        alert(`Lỗi quét bill: ${err.message}`);
-      } finally {
-        laser.classList.add('hidden');
-        btnScan.disabled = false;
       }
+
+      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+        state.items = parsed.map((it, idx) => ({
+          id: Date.now() + idx,
+          name: it.name || "Món không tên",
+          price: Number(it.price) || 0,
+          consumers: state.members.map(m => m.id)
+        }));
+        renderItems();
+        calculateSettlement();
+      } else {
+        alert(`Lỗi quét bill: ${lastError || "Không thể kết nối hoặc nhận diện ảnh"}`);
+      }
+
+      laser.classList.add('hidden');
+      btnScan.disabled = false;
     }
 
     // 6. Tạo VietQR và sao chép Zalo
